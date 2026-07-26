@@ -3,12 +3,19 @@
 
 Sources:
   news    GDELT DOC 2.0 -- worldwide online news, 2017-01-01..now, no key needed.
-          Value is "volume intensity": percent of all coverage GDELT monitored in
-          that interval that matched. Already normalized, so outlets publishing
-          more do not dominate.
+          Value is percent of the articles GDELT monitored in that interval that
+          matched. Already normalized, so outlets publishing more do not dominate.
+  tv      GDELT TV 2.0 -- US national TV news, 2009-07-02..2024-10-31, no key.
+          Value is percent of monitored airtime (15-second caption clips),
+          averaged across the nine national networks. Reaches seven years
+          further back than news, but the archive stops in late 2024.
   bluesky app.bsky.feed.searchPosts -- raw matching-post counts per interval.
           NOT normalized (the API exposes no denominator). Needs BSKY_HANDLE and
           BSKY_APP_PASSWORD in the environment.
+
+news and tv are not interchangeable: percent-of-articles and percent-of-airtime
+have different denominators, and over the months they share the same phrase runs
+about 6.5x hotter in news at r=0.69. Plot them separately.
 
 Phrases are matched exactly. A bare multi-word phrase gets quoted for you; a
 phrase already containing " ( or : is passed through untouched, so full source
@@ -33,8 +40,11 @@ from datetime import date, datetime, timedelta
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0 Safari/537.36")
 GDELT_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
+GDELT_TV_URL = "https://api.gdeltproject.org/api/v2/tv/tv"
 BSKY_URL = "https://bsky.social/xrpc"
 GDELT_EPOCH = date(2017, 1, 1)
+TV_EPOCH = date(2009, 7, 2)     # the API refuses anything earlier
+TV_LAST = date(2024, 10, 31)    # archive stops here
 BLOCKS = " .:-=+*#%@"
 
 
@@ -52,8 +62,30 @@ def as_query(phrase):
     return retval
 
 
-def news_series(query, since, until, tries=10):
-    """[(date, percent_of_monitored_coverage)] from GDELT."""
+def first_series(timeline):
+    """DOC returns exactly one series."""
+    retval = timeline[0]["data"] if timeline else []
+    return retval
+
+
+def mean_across_networks(timeline):
+    """TV returns one series per network; a national line is their mean.
+
+    This hides disagreement: a phrase saturating one network and absent from the
+    rest reads as an unremarkable middle value.
+    """
+    totals = defaultdict(lambda: [0.0, 0])
+    for net in timeline:
+        for point in net["data"]:
+            totals[point["date"]][0] += point["value"]
+            totals[point["date"]][1] += 1
+    retval = [{"date": stamp, "value": total / n}
+              for stamp, (total, n) in sorted(totals.items())]
+    return retval
+
+
+def gdelt_series(url, query, since, until, collapse, tries=10):
+    """[(date, percent)] from a GDELT timelinevol endpoint."""
     params = urllib.parse.urlencode({
         "query": query,
         "mode": "timelinevol",
@@ -63,7 +95,7 @@ def news_series(query, since, until, tries=10):
     })
     for attempt in range(tries):
         try:
-            body = fetch("%s?%s" % (GDELT_URL, params))
+            body = fetch("%s?%s" % (url, params))
         except urllib.error.HTTPError as exc:
             # ponytail: GDELT's 429 is stochastic, not a steady quota -- the same
             # query alternates 429/200 within a minute, so just keep asking.
@@ -72,11 +104,27 @@ def news_series(query, since, until, tries=10):
                 raise
             time.sleep(min(30, 5 * 2 ** attempt))
             continue
-        points = json.loads(body)["timeline"][0]["data"]
+        # A rejected query comes back as HTTP 200 carrying a plain-text complaint
+        # rather than JSON, so report that text instead of a decode traceback.
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError:
+            raise SystemExit(body.strip()[:200] or "GDELT sent an empty reply")
         retval = [(datetime.strptime(p["date"], "%Y%m%dT%H%M%SZ").date(), p["value"])
-                  for p in points]
+                  for p in collapse(payload.get("timeline", []))]
         return retval
     raise SystemExit("GDELT throttled after %d tries: %s" % (tries, query))
+
+
+def news_series(query, since, until):
+    retval = gdelt_series(GDELT_URL, query, since, until, first_series)
+    return retval
+
+
+def tv_series(query, since, until):
+    retval = gdelt_series(GDELT_TV_URL, '%s market:"National"' % query,
+                          since, until, mean_across_networks)
+    return retval
 
 
 def bluesky_series(query, since, until, max_pages=50):
@@ -165,6 +213,19 @@ def self_test():
     assert bucket(series, "week", "mean") == [(date(2026, 1, 5), 3.0), (date(2026, 2, 2), 9.0)]
     assert bucket(series, "month", "sum") == [(date(2026, 1, 1), 6.0), (date(2026, 2, 1), 9.0)]
 
+    assert first_series([]) == []
+    assert first_series([{"data": [{"date": "x", "value": 1.0}]}]) == [{"date": "x", "value": 1.0}]
+
+    # Two networks, one date each way: the national line is their mean, and a
+    # date only one network carries is that network's own value.
+    timeline = [
+        {"series": "CNN", "data": [{"date": "a", "value": 1.0}, {"date": "b", "value": 4.0}]},
+        {"series": "MSNBC", "data": [{"date": "a", "value": 3.0}]},
+    ]
+    assert mean_across_networks(timeline) == [{"date": "a", "value": 2.0},
+                                              {"date": "b", "value": 4.0}]
+    assert mean_across_networks([]) == []
+
     low, mid, high = spark([0, 5, 10])
     assert (low, high) == (BLOCKS[0], BLOCKS[-1])
     assert BLOCKS.index(low) < BLOCKS.index(mid) < BLOCKS.index(high)
@@ -176,7 +237,7 @@ def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("phrases", nargs="*", help="phrase(s) to trend")
-    parser.add_argument("--source", choices=["news", "bluesky"], default="news")
+    parser.add_argument("--source", choices=["news", "tv", "bluesky"], default="news")
     parser.add_argument("--since", help="YYYY-MM-DD (default: 1 year back)")
     parser.add_argument("--until", help="YYYY-MM-DD (default: today)")
     parser.add_argument("--bucket", choices=["day", "week", "month"], default="week")
@@ -193,19 +254,33 @@ def main():
 
     until = date.fromisoformat(args.until) if args.until else date.today()
     since = date.fromisoformat(args.since) if args.since else until - timedelta(days=365)
-    if args.source == "news" and since < GDELT_EPOCH:
-        print("note: GDELT starts %s, clamping --since" % GDELT_EPOCH, file=sys.stderr)
-        since = GDELT_EPOCH
 
     if args.source == "news":
-        fetch_series, how, unit = news_series, "mean", "% of monitored news coverage"
+        fetch_series, how, unit = news_series, "mean", "% of monitored articles"
+        first, last = GDELT_EPOCH, None
+    elif args.source == "tv":
+        fetch_series, how, unit = tv_series, "mean", "% of monitored airtime"
+        first, last = TV_EPOCH, TV_LAST
     else:
         fetch_series, how, unit = bluesky_series, "sum", "matching posts"
+        first, last = None, None
+
+    if first and since < first:
+        print("note: %s coverage starts %s, clamping --since" % (args.source, first),
+              file=sys.stderr)
+        since = first
+    if last and until > last:
+        print("note: %s coverage ends %s, clamping --until" % (args.source, last),
+              file=sys.stderr)
+        until = last
+    if since > until:
+        raise SystemExit("%s covers %s..%s -- nothing in the range you asked for"
+                         % (args.source, first, last))
 
     if args.csv:
         print("date,phrase,value")
     for i, phrase in enumerate(args.phrases):
-        if i and args.source == "news":
+        if i and args.source in ("news", "tv"):
             time.sleep(5)  # GDELT asks for one request per 5s
         points = bucket(fetch_series(as_query(phrase), since, until), args.bucket, how)
         if args.csv:

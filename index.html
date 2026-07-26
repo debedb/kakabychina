@@ -78,32 +78,36 @@
   button[disabled] { opacity: .5; cursor: progress; }
 
   #status { min-height: 20px; color: var(--ink-2); font-size: 13px; margin-bottom: 8px; }
-  #card {
+  .card {
     background: var(--surface); border: 1px solid var(--border);
-    border-radius: 10px; padding: 16px; position: relative;
+    border-radius: 10px; padding: 16px; position: relative; margin-bottom: 18px;
   }
-  #card[hidden] { display: none; }
+  .card[hidden] { display: none; }
+  .card h2 { font-size: 15px; margin: 0 0 2px; }
+  .card .range { margin: 0 0 10px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .card .empty { margin: 0; padding: 26px 0; color: var(--muted); font-size: 13px; }
   svg { width: 100%; height: auto; display: block; overflow: visible; }
   .grid-line { stroke: var(--grid); stroke-width: 1; }
   .axis-line { stroke: var(--axis); stroke-width: 1; }
   .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
   .series { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
   .end-label { fill: var(--ink-2); font-size: 11px; }
+  .axis-label { fill: var(--muted); font-size: 11px; }
   .crosshair { stroke: var(--axis); stroke-width: 1; }
 
-  #legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 10px 0 0; padding: 0; list-style: none; }
-  #legend li { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 10px 0 0; padding: 0; list-style: none; }
+  .legend li { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); }
   .swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
 
-  #tip {
+  .tip {
     position: absolute; pointer-events: none; opacity: 0;
     background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
     padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.14);
     min-width: 140px;
   }
-  #tip h4 { margin: 0 0 5px; font-size: 12px; color: var(--muted); font-weight: 600; }
-  #tip div { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
-  #tip b { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .tip h4 { margin: 0 0 5px; font-size: 12px; color: var(--muted); font-weight: 600; }
+  .tip div { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .tip b { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--ink); }
 
   details { margin-top: 18px; }
   summary { cursor: pointer; color: var(--ink-2); font-size: 13px; }
@@ -111,18 +115,24 @@
   th, td { text-align: right; padding: 3px 8px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
   th:first-child, td:first-child { text-align: left; }
   th { color: var(--muted); font-weight: 600; }
-  footer { margin-top: 28px; color: var(--muted); font-size: 12px; max-width: 70ch; }
   a { color: var(--s1); }
+
+  #about { margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--border); max-width: 68ch; }
+  #about h2 { font-size: 16px; margin: 0 0 14px; }
+  #about h3 { font-size: 13px; margin: 22px 0 6px; color: var(--ink); }
+  #about p { margin: 0 0 10px; color: var(--ink-2); font-size: 14px; }
+  #about code { font-size: 12.5px; background: var(--surface); border: 1px solid var(--border);
+                border-radius: 4px; padding: 1px 5px; }
 </style>
 </head>
 <body>
 <main>
   <h1>News Ngram</h1>
   <p class="lede">
-    Phrase frequency in worldwide online news, via the
-    <a href="https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/">GDELT DOC 2.0 API</a>.
-    Each value is the share of all coverage GDELT monitored in that interval that matched,
-    so outlets that simply publish more do not dominate. Coverage starts 2017-01-01.
+    Phrase frequency in the news, via <a href="https://www.gdeltproject.org/">GDELT</a>.
+    Each value is a share of the coverage GDELT monitored in that interval, so outlets
+    that simply publish more do not dominate. Online news and TV are plotted separately
+    &mdash; <a href="#about">here is why</a>.
   </p>
 
   <form id="form">
@@ -133,11 +143,11 @@ arms control</textarea>
     </div>
     <div>
       <label for="since">From</label>
-      <input type="date" id="since" min="2017-01-01">
+      <input type="date" id="since" min="2009-07-02">
     </div>
     <div>
       <label for="until">To</label>
-      <input type="date" id="until" min="2017-01-01">
+      <input type="date" id="until" min="2009-07-02">
     </div>
     <div>
       <label for="bucket">Bucket</label>
@@ -152,30 +162,83 @@ arms control</textarea>
 
   <div id="status"></div>
 
-  <div id="card" hidden>
-    <svg id="chart" viewBox="0 0 900 380" role="img" aria-labelledby="chart-title"></svg>
-    <title id="chart-title">Share of monitored news coverage over time</title>
-    <ul id="legend"></ul>
-    <div id="tip" aria-hidden="true"></div>
-    <details>
-      <summary>Table view</summary>
-      <div style="max-height:340px;overflow:auto"><table id="table"></table></div>
-    </details>
-  </div>
+  <div id="charts"></div>
 
-  <footer>
-    Query syntax passes straight through to GDELT, so source filters work:
-    <code>"no evidence" (domain:reuters.com OR domain:apnews.com)</code>.
-    A line already containing <code>"</code>, <code>(</code> or <code>:</code> is sent verbatim;
-    anything else is quoted for you. GDELT throttles aggressively and refuses
-    several requests in a row before answering &mdash; this page retries.
-  </footer>
+  <section id="about">
+    <h2>Reading these charts</h2>
+
+    <h3>Two charts, never one</h3>
+    <p>
+      The same phrase runs about <b>6.5&times; hotter</b> on the online-news chart than on
+      the TV chart, and over the 94 months where both have data the two move together
+      only loosely (r&nbsp;=&nbsp;0.69). In January 2023, for instance, &ldquo;climate
+      change&rdquo; sat near its <em>high</em> in online news and near its <em>low</em> on
+      television.
+    </p>
+    <p>
+      They are not the same measurement. One counts articles, the other counts airtime.
+      One watches the world, the other watches nine US networks. Putting them on a shared
+      axis would flatten TV into a line along the floor; giving them two axes on one chart
+      would let any pair of scales manufacture whatever agreement you wanted to see. So
+      each gets its own chart, its own axis, and its own date range.
+    </p>
+
+    <h3>What the percentage on the y-axis is</h3>
+    <p>
+      Different things on each chart, which is the whole reason there are two.
+    </p>
+    <p>
+      On the <b>online news</b> chart it is the percent of the <em>articles</em> GDELT
+      monitored worldwide in that interval that contained your phrase. Read 1.1% as:
+      about one in ninety articles mentioned it.
+    </p>
+    <p>
+      On the <b>TV</b> chart it is the percent of monitored <em>airtime</em>. GDELT cuts
+      each broadcast into 15-second clips and counts the ones whose captions contain your
+      phrase; the line is that percentage averaged across the nine US national networks it
+      indexes (Bloomberg, CNBC, CNN, C-SPAN 1&ndash;3, FOX Business, FOX News, MSNBC).
+      For scale, CNN alone contributes roughly 130,000 clips a month.
+    </p>
+    <p>
+      Both are shares rather than counts, so an outlet or a network that simply produces
+      more does not dominate. But a percent of articles and a percent of airtime are not
+      the same quantity, and the ratio between them is not meaningful.
+    </p>
+    <p>
+      Because TV is a mean across nine networks, it hides disagreement between them
+      &mdash; a phrase saturating one network and absent from the rest reads as a modest
+      middling value.
+    </p>
+
+    <h3>Where the data stops</h3>
+    <p>
+      <b>Online news covers 2017-01-01 onward.</b> That is GDELT's own floor, not a
+      setting here; earlier dates are clamped.
+      <b>TV covers 2009-07-02 through 2024-10-31</b> &mdash; it reaches back seven years
+      further, but the archive stops in late 2024, so it cannot tell you about the
+      present. Ask for a range outside either window and that chart quietly narrows to
+      what exists; the date line under each title always states what you actually got.
+    </p>
+
+    <h3>Searching</h3>
+    <p>
+      Multi-word phrases are matched exactly. Query syntax passes straight through to
+      GDELT, so source filters work:
+      <code>"no evidence" (domain:reuters.com OR domain:apnews.com)</code>.
+      A line already containing <code>"</code>, <code>(</code> or <code>:</code> is sent
+      verbatim; anything else is quoted for you.
+    </p>
+    <p>
+      GDELT throttles aggressively and will refuse several requests in a row before
+      answering. This page waits and retries, which is why a plot of several phrases
+      takes a while.
+    </p>
+  </section>
 </main>
 
 <script>
-const API = "https://api.gdeltproject.org/api/v2/doc/doc";
 const SLOTS = ["--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8"];
-const PAD = { l: 56, r: 116, t: 16, b: 34 };
+const PAD = { l: 78, r: 116, t: 16, b: 34 }; // l leaves room for the rotated axis label
 const W = 900, H = 380;
 
 const $ = (id) => document.getElementById(id);
@@ -183,6 +246,50 @@ const status = $("status");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const iso = (d) => d.toISOString().slice(0, 10);
 const stamp = (s) => s.replaceAll("-", "") + "000000";
+const unstamp = (s) => `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
+
+// The TV API answers with one series per network. A single national line is
+// their mean, which is why a phrase that saturates one network and is absent
+// from the rest reads as an unremarkable middle value.
+function meanAcrossNetworks(timeline) {
+  const acc = new Map();
+  for (const net of timeline) {
+    for (const p of net.data) {
+      const a = acc.get(p.date) ?? [0, 0];
+      acc.set(p.date, [a[0] + p.value, a[1] + 1]);
+    }
+  }
+  return [...acc.entries()].sort().map(([date, [sum, n]]) => ({ date, value: sum / n }));
+}
+
+// Two sources, never merged: their denominators differ (articles vs airtime),
+// their reach differs (worldwide vs nine US networks), and over the months they
+// share, the same phrase runs ~6.5x hotter in online news at r=0.69. One axis
+// would bury TV; two axes on one chart would let the scales invent agreement.
+const SOURCES = [
+  {
+    key: "news",
+    title: "Worldwide online news",
+    url: "https://api.gdeltproject.org/api/v2/doc/doc",
+    axis: "% of monitored articles",
+    unit: "share of the articles GDELT monitored worldwide",
+    first: "2017-01-01",
+    last: null,                                  // runs through today
+    scope: (query) => query,
+    collapse: (timeline) => timeline[0]?.data ?? [],
+  },
+  {
+    key: "tv",
+    title: "US national TV news",
+    url: "https://api.gdeltproject.org/api/v2/tv/tv",
+    axis: "% of monitored airtime",
+    unit: "share of 15-second airtime clips, averaged across 9 networks",
+    first: "2009-07-02",                         // the API refuses anything earlier
+    last: "2024-10-31",                          // archive stops here
+    scope: (query) => `${query} market:"National"`,
+    collapse: meanAcrossNetworks,
+  },
+];
 
 // Bare multi-word input is quoted for exact-phrase matching; anything already
 // carrying GDELT syntax is sent verbatim.
@@ -191,9 +298,17 @@ function asQuery(phrase) {
   return phrase.includes(" ") ? `"${phrase}"` : phrase;
 }
 
-async function series(query, since, until) {
-  const url = `${API}?${new URLSearchParams({
-    query, mode: "timelinevol", format: "json",
+// Narrow the requested window to what a source actually holds. null means the
+// request misses it entirely.
+function windowFor(src, since, until) {
+  const lo = since < src.first ? src.first : since;
+  const hi = src.last && until > src.last ? src.last : until;
+  return lo > hi ? null : [lo, hi];
+}
+
+async function series(src, query, since, until) {
+  const url = `${src.url}?${new URLSearchParams({
+    query: src.scope(query), mode: "timelinevol", format: "json",
     startdatetime: stamp(since), enddatetime: stamp(until),
   })}`;
   // GDELT's 429 is stochastic rather than a steady quota: the same query
@@ -216,12 +331,16 @@ async function series(query, since, until) {
       continue;
     }
     if (!res.ok) throw new Error(`GDELT ${res.status} for ${query}`);
-    const json = await res.json();
-    const points = json.timeline?.[0]?.data ?? [];
-    return points.map((p) => [
-      `${p.date.slice(0, 4)}-${p.date.slice(4, 6)}-${p.date.slice(6, 8)}`,
-      p.value,
-    ]);
+    // A rejected query comes back as HTTP 200 carrying a plain-text complaint
+    // rather than JSON, so show that text instead of a parser error.
+    const body = await res.text();
+    let json;
+    try {
+      json = JSON.parse(body);
+    } catch {
+      throw new Error(body.trim().slice(0, 200) || `GDELT sent nothing for ${query}`);
+    }
+    return src.collapse(json.timeline ?? []).map((p) => [unstamp(p.date), p.value]);
   }
   throw new Error(`GDELT kept throttling ${query}`);
 }
@@ -252,9 +371,9 @@ function niceMax(v) {
 
 const fmt = (v) => (v >= 1 ? v.toFixed(2) : v.toPrecision(2));
 
-let hover = null; // { xs, keys, rows } for the crosshair layer
+const HOVER = new Map(); // source key -> { keys, rows, xAt, yAt } for its crosshair
 
-function draw(rows, bucket) {
+function draw(src, rows, bucket, lo, hi) {
   const keys = [...new Set(rows.flatMap((r) => r.points.map((p) => p[0])))].sort();
   const top = niceMax(Math.max(...rows.flatMap((r) => r.points.map((p) => p[1])), 0));
   const xAt = (i) => PAD.l + (keys.length < 2 ? 0 : i * (W - PAD.l - PAD.r) / (keys.length - 1));
@@ -268,6 +387,8 @@ function draw(rows, bucket) {
     parts.push(`<text class="tick" x="${PAD.l - 8}" y="${y + 4}" text-anchor="end">${fmt(value)}%</text>`);
   }
   parts.push(`<line class="axis-line" x1="${PAD.l}" y1="${H - PAD.b}" x2="${W - PAD.r}" y2="${H - PAD.b}"/>`);
+  // The two charts count different things, so each says which on its own axis.
+  parts.push(`<text class="axis-label" transform="rotate(-90 13 ${H / 2})" x="13" y="${H / 2}" text-anchor="middle">${src.axis}</text>`);
 
   const every = Math.max(1, Math.ceil(keys.length / 7));
   keys.forEach((key, i) => {
@@ -291,14 +412,14 @@ function draw(rows, bucket) {
     }
   });
 
-  parts.push('<g id="cross"></g>');
-  $("chart").innerHTML = parts.join("");
+  parts.push(`<g class="cross" id="cross-${src.key}"></g>`);
+  $(`chart-${src.key}`).innerHTML = parts.join("");
 
-  $("legend").innerHTML = rows.length < 2 ? "" : rows.map((row, s) =>
+  $(`legend-${src.key}`).innerHTML = rows.length < 2 ? "" : rows.map((row, s) =>
     `<li><span class="swatch" style="background:var(${SLOTS[s]})"></span>${escapeHtml(row.phrase)}</li>`
   ).join("");
 
-  $("table").innerHTML =
+  $(`table-${src.key}`).innerHTML =
     `<thead><tr><th>Bucket</th>${rows.map((r) => `<th>${escapeHtml(r.phrase)}</th>`).join("")}</tr></thead>` +
     `<tbody>${keys.map((key) => {
       const cells = rows.map((r) => {
@@ -308,45 +429,89 @@ function draw(rows, bucket) {
       return `<tr><td>${key}</td>${cells}</tr>`;
     }).join("")}</tbody>`;
 
-  hover = { keys, rows, xAt, yAt };
-  $("card").hidden = false;
+  HOVER.set(src.key, { keys, rows, xAt, yAt });
+  setRange(src, lo, hi);
+  $(`plot-${src.key}`).hidden = false;
+  $(`empty-${src.key}`).hidden = true;
+  $(`card-${src.key}`).hidden = false;
+}
+
+// The subtitle is the honest record of what came back, which matters most when
+// the requested window was wider than the source covers.
+function setRange(src, lo, hi) {
+  const asked = [$("since").value, $("until").value];
+  const narrowed = lo !== asked[0] || hi !== asked[1];
+  $(`range-${src.key}`).textContent =
+    `${lo} to ${hi} · ${src.unit}` +
+    (narrowed ? ` · narrowed from your range (covers ${src.first} to ${src.last ?? "today"})` : "");
+}
+
+function showEmpty(src, message, lo, hi) {
+  if (lo) setRange(src, lo, hi);
+  else $(`range-${src.key}`).textContent = `covers ${src.first} to ${src.last ?? "today"}`;
+  $(`empty-${src.key}`).textContent = message;
+  $(`empty-${src.key}`).hidden = false;
+  $(`plot-${src.key}`).hidden = true;
+  $(`card-${src.key}`).hidden = false;
+  HOVER.delete(src.key);
 }
 
 function escapeHtml(s) {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
 
-$("chart").addEventListener("pointermove", (ev) => {
-  if (!hover) return;
-  const box = ev.currentTarget.getBoundingClientRect();
-  const x = (ev.clientX - box.left) / box.width * W;
-  const span = (W - PAD.l - PAD.r) / Math.max(1, hover.keys.length - 1);
-  const i = Math.max(0, Math.min(hover.keys.length - 1, Math.round((x - PAD.l) / span)));
-  const cx = hover.xAt(i);
+$("charts").innerHTML = SOURCES.map((src) => `
+  <div class="card" id="card-${src.key}" hidden>
+    <h2>${src.title}</h2>
+    <p class="range" id="range-${src.key}"></p>
+    <p class="empty" id="empty-${src.key}" hidden></p>
+    <div id="plot-${src.key}" hidden>
+      <svg class="chart" id="chart-${src.key}" viewBox="0 0 ${W} ${H}"
+           role="img" aria-label="${src.title}: ${src.unit} over time"></svg>
+      <ul class="legend" id="legend-${src.key}"></ul>
+      <div class="tip" id="tip-${src.key}" aria-hidden="true"></div>
+      <details>
+        <summary>Table view</summary>
+        <div style="max-height:340px;overflow:auto"><table id="table-${src.key}"></table></div>
+      </details>
+    </div>
+  </div>`).join("");
 
-  const marks = hover.rows.map((row, s) => {
-    const v = new Map(row.points).get(hover.keys[i]);
-    return v === undefined ? "" : `<circle cx="${cx}" cy="${hover.yAt(v)}" r="4.5" fill="var(${SLOTS[s]})" stroke="var(--surface)" stroke-width="2"/>`;
-  }).join("");
-  document.getElementById("cross").innerHTML =
-    `<line class="crosshair" x1="${cx}" y1="${PAD.t}" x2="${cx}" y2="${H - PAD.b}"/>${marks}`;
+for (const src of SOURCES) {
+  const chart = $(`chart-${src.key}`), card = $(`card-${src.key}`), tip = $(`tip-${src.key}`);
 
-  const tip = $("tip");
-  tip.innerHTML = `<h4>${hover.keys[i]}</h4>` + hover.rows.map((row, s) => {
-    const v = new Map(row.points).get(hover.keys[i]);
-    return `<div><span class="swatch" style="background:var(${SLOTS[s]})"></span>${escapeHtml(row.phrase)}<b>${v === undefined ? "—" : fmt(v) + "%"}</b></div>`;
-  }).join("");
-  tip.style.opacity = 1;
-  const px = ev.clientX - $("card").getBoundingClientRect().left;
-  tip.style.left = Math.min(px + 14, $("card").clientWidth - tip.offsetWidth - 8) + "px";
-  tip.style.top = (ev.clientY - $("card").getBoundingClientRect().top + 14) + "px";
-});
+  chart.addEventListener("pointermove", (ev) => {
+    const hover = HOVER.get(src.key);
+    if (!hover) return;
+    const box = ev.currentTarget.getBoundingClientRect();
+    const x = (ev.clientX - box.left) / box.width * W;
+    const span = (W - PAD.l - PAD.r) / Math.max(1, hover.keys.length - 1);
+    const i = Math.max(0, Math.min(hover.keys.length - 1, Math.round((x - PAD.l) / span)));
+    const cx = hover.xAt(i);
 
-$("chart").addEventListener("pointerleave", () => {
-  $("tip").style.opacity = 0;
-  const cross = document.getElementById("cross");
-  if (cross) cross.innerHTML = "";
-});
+    const marks = hover.rows.map((row, s) => {
+      const v = new Map(row.points).get(hover.keys[i]);
+      return v === undefined ? "" : `<circle cx="${cx}" cy="${hover.yAt(v)}" r="4.5" fill="var(${SLOTS[s]})" stroke="var(--surface)" stroke-width="2"/>`;
+    }).join("");
+    $(`cross-${src.key}`).innerHTML =
+      `<line class="crosshair" x1="${cx}" y1="${PAD.t}" x2="${cx}" y2="${H - PAD.b}"/>${marks}`;
+
+    tip.innerHTML = `<h4>${hover.keys[i]}</h4>` + hover.rows.map((row, s) => {
+      const v = new Map(row.points).get(hover.keys[i]);
+      return `<div><span class="swatch" style="background:var(${SLOTS[s]})"></span>${escapeHtml(row.phrase)}<b>${v === undefined ? "—" : fmt(v) + "%"}</b></div>`;
+    }).join("");
+    tip.style.opacity = 1;
+    const box2 = card.getBoundingClientRect();
+    tip.style.left = Math.min(ev.clientX - box2.left + 14, card.clientWidth - tip.offsetWidth - 8) + "px";
+    tip.style.top = (ev.clientY - box2.top + 14) + "px";
+  });
+
+  chart.addEventListener("pointerleave", () => {
+    tip.style.opacity = 0;
+    const cross = $(`cross-${src.key}`);
+    if (cross) cross.innerHTML = "";
+  });
+}
 
 $("form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
@@ -355,15 +520,26 @@ $("form").addEventListener("submit", async (ev) => {
   const since = $("since").value, until = $("until").value, bucket = $("bucket").value;
 
   $("go").disabled = true;
-  const rows = [];
+  let fetched = 0;
   try {
-    for (const [i, phrase] of phrases.entries()) {
-      if (i) await sleep(5000); // GDELT asks for one request per 5s
-      status.textContent = `Fetching ${phrase} (${i + 1}/${phrases.length})…`;
-      rows.push({ phrase, points: bucketMean(await series(asQuery(phrase), since, until), bucket) });
+    for (const src of SOURCES) {
+      const range = windowFor(src, since, until);
+      if (!range) {
+        showEmpty(src, `Nothing here for ${since} to ${until} — this source covers ` +
+                       `${src.first} to ${src.last ?? "today"}.`);
+        continue;
+      }
+      const [lo, hi] = range;
+      const rows = [];
+      for (const phrase of phrases) {
+        if (fetched++) await sleep(5000); // GDELT asks for one request per 5s
+        status.textContent = `${src.title}: fetching ${phrase}…`;
+        rows.push({ phrase, points: bucketMean(await series(src, asQuery(phrase), lo, hi), bucket) });
+      }
+      if (rows.every((row) => !row.points.length)) showEmpty(src, "No matches in this window.", lo, hi);
+      else draw(src, rows, bucket, lo, hi);
     }
-    draw(rows, bucket);
-    status.textContent = `${since} to ${until}, by ${bucket}. Share of monitored news coverage.`;
+    status.textContent = `Plotted by ${bucket}. Each chart is on its own scale.`;
   } catch (err) {
     status.textContent = err.message;
   } finally {
