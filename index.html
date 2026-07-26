@@ -56,7 +56,9 @@
     font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   main { max-width: 1000px; margin: 0 auto; }
-  h1 { font-size: 20px; margin: 0 0 4px; }
+  h1 { font-size: 20px; margin: 0; }
+  .masthead { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 4px; }
+  .masthead a { font-size: 13px; }
   p.lede { margin: 0 0 20px; color: var(--ink-2); max-width: 62ch; }
 
   form {
@@ -123,11 +125,18 @@
   #about p { margin: 0 0 10px; color: var(--ink-2); font-size: 14px; }
   #about code { font-size: 12.5px; background: var(--surface); border: 1px solid var(--border);
                 border-radius: 4px; padding: 1px 5px; }
+  ul.nets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 12px;
+            list-style: none; margin: 0 0 10px; padding: 0; }
+  ul.nets li { font-size: 13.5px; color: var(--ink-2); border-left: 2px solid var(--s1);
+               padding-left: 8px; }
 </style>
 </head>
 <body>
 <main>
-  <h1>News Ngram</h1>
+  <div class="masthead">
+    <h1>News Ngram</h1>
+    <a href="https://github.com/debedb/kakabychina">Source on GitHub</a>
+  </div>
   <p class="lede">
     Phrase frequency in the news, via <a href="https://www.gdeltproject.org/">GDELT</a>.
     Each value is a share of the coverage GDELT monitored in that interval, so outlets
@@ -195,8 +204,7 @@ arms control</textarea>
     <p>
       On the <b>TV</b> chart it is the percent of monitored <em>airtime</em>. GDELT cuts
       each broadcast into 15-second clips and counts the ones whose captions contain your
-      phrase; the line is that percentage averaged across the nine US national networks it
-      indexes (Bloomberg, CNBC, CNN, C-SPAN 1&ndash;3, FOX Business, FOX News, MSNBC).
+      phrase; the line is that percentage averaged across the nine networks listed below.
       For scale, CNN alone contributes roughly 130,000 clips a month.
     </p>
     <p>
@@ -208,6 +216,38 @@ arms control</textarea>
       Because TV is a mean across nine networks, it hides disagreement between them
       &mdash; a phrase saturating one network and absent from the rest reads as a modest
       middling value.
+    </p>
+
+    <h3>Which networks the TV chart covers</h3>
+    <p>
+      Nine, all of them cable or satellite, all with unbroken coverage across the chart's
+      full range:
+    </p>
+    <ul class="nets">
+      <li>CNN</li><li>FOX News</li><li>MSNBC</li>
+      <li>CNBC</li><li>FOX Business</li><li>Bloomberg</li>
+      <li>C-SPAN</li><li>C-SPAN 2</li><li>C-SPAN 3</li>
+    </ul>
+    <p>
+      <b>ABC, CBS, NBC and PBS are not in that list</b>, and their absence is worth
+      knowing about. GDELT carries no national feed for the broadcast networks &mdash;
+      it indexes them only as individual local affiliates, such as San Francisco's KGO
+      for ABC or Washington's WRC for NBC. Averaging one city's affiliate into a line
+      labelled national would misrepresent what you were looking at, so this chart leaves
+      them out rather than quietly standing in a local station for a national network.
+    </p>
+    <p>
+      <b>BBC News, Al Jazeera, Deutsche Welle and Russia Today</b> are likewise indexed,
+      but as international channels rather than US ones, and mixing them into a US
+      average would blur exactly the thing the chart is measuring.
+      <b>NPR does not appear at all</b> &mdash; the archive is built from television
+      captions, so radio is outside it entirely.
+    </p>
+    <p>
+      The practical consequence: this is a picture of US <em>cable news</em>, which skews
+      toward continuous political coverage. C-SPAN's three channels carry unedited floor
+      and committee proceedings, so legislative language registers more strongly here
+      than it would in a broadcast evening-news average.
     </p>
 
     <h3>Where the data stops</h3>

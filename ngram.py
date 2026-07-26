@@ -7,8 +7,14 @@ Sources:
           matched. Already normalized, so outlets publishing more do not dominate.
   tv      GDELT TV 2.0 -- US national TV news, 2009-07-02..2024-10-31, no key.
           Value is percent of monitored airtime (15-second caption clips),
-          averaged across the nine national networks. Reaches seven years
-          further back than news, but the archive stops in late 2024.
+          averaged across nine cable networks: CNN, FOX News, MSNBC, CNBC,
+          FOX Business, Bloomberg and C-SPAN 1-3. Reaches seven years further
+          back than news, but the archive stops in late 2024.
+          ABC/CBS/NBC/PBS are absent -- GDELT indexes those only as local
+          affiliates (market:"San Francisco", market:"Washington DC"), never as
+          national feeds, so averaging one city's affiliate into a national line
+          would misrepresent it. BBC/Al Jazeera/DW/RT live in
+          market:"International". NPR is radio, not in the archive at all.
   bluesky app.bsky.feed.searchPosts -- raw matching-post counts per interval.
           NOT normalized (the API exposes no denominator). Needs BSKY_HANDLE and
           BSKY_APP_PASSWORD in the environment.

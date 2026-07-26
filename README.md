@@ -42,12 +42,33 @@ exposes no denominator.
 interval which contained your phrase. Read 1.1% as roughly one article in ninety.
 
 **TV** — GDELT cuts each broadcast into 15-second clips and counts the ones whose
-captions contain your phrase. The line is that percentage averaged across
-Bloomberg, CNBC, CNN, C-SPAN 1–3, FOX Business, FOX News and MSNBC. (CNN alone
-contributes about 130,000 clips a month.)
+captions contain your phrase. The line is that percentage averaged across nine
+networks. (CNN alone contributes about 130,000 clips a month.)
 
 Both are shares rather than counts, so an outlet or network that simply produces
 more does not dominate.
+
+### Which networks the TV chart covers
+
+Nine, all cable or satellite, all with unbroken coverage across the full range:
+
+> CNN · FOX News · MSNBC · CNBC · FOX Business · Bloomberg · C-SPAN · C-SPAN 2 · C-SPAN 3
+
+**ABC, CBS, NBC and PBS are not among them.** GDELT carries no national feed for
+the broadcast networks — it indexes them only as individual local affiliates
+(San Francisco's KGO for ABC, Washington's WRC for NBC, and so on). Averaging one
+city's affiliate into a line labelled national would misrepresent it, so they are
+left out rather than quietly standing in for the network.
+
+**BBC News, Al Jazeera, Deutsche Welle and Russia Today** are indexed too, but as
+international channels; mixing them into a US average would blur the thing being
+measured. **NPR does not appear at all** — the archive is television captions, so
+radio is outside it.
+
+Practical consequence: this is a picture of US *cable news*, which skews toward
+continuous political coverage. C-SPAN's three channels carry unedited floor and
+committee proceedings, so legislative language registers more strongly here than
+it would in a broadcast evening-news average.
 
 ## Why two charts and not one
 
