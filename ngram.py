@@ -5,16 +5,24 @@ Sources:
   news    GDELT DOC 2.0 -- worldwide online news, 2017-01-01..now, no key needed.
           Value is percent of the articles GDELT monitored in that interval that
           matched. Already normalized, so outlets publishing more do not dominate.
-  tv      GDELT TV 2.0 -- US national TV news, 2009-07-02..2024-10-31, no key.
+  tv      GDELT TV 2.0 -- US TV news, 2009-07-02..2024-10-31, no key.
           Value is percent of monitored airtime (15-second caption clips),
-          averaged across nine cable networks: CNN, FOX News, MSNBC, CNBC,
-          FOX Business, Bloomberg and C-SPAN 1-3. Reaches seven years further
-          back than news, but the archive stops in late 2024.
-          ABC/CBS/NBC/PBS are absent -- GDELT indexes those only as local
-          affiliates (market:"San Francisco", market:"Washington DC"), never as
-          national feeds, so averaging one city's affiliate into a national line
-          would misrepresent it. BBC/Al Jazeera/DW/RT live in
-          market:"International". NPR is radio, not in the archive at all.
+          averaged across eleven stations: six cable networks (CNN, FOX News,
+          MSNBC, CNBC, FOX Business, Bloomberg) plus the five major broadcast
+          networks as their San Francisco affiliates (ABC/KGO, CBS/KPIX,
+          NBC/KNTV, FOX/KTVU, PBS/KQED). Reaches seven years further back than
+          news, but the archive stops in late 2024.
+          The panel GROWS over time -- 4 stations in 2009, 9 from mid-2010, all
+          11 from end-2013 -- so a station only enters the mean once GDELT began
+          indexing it. GDELT reports a flat 0 beforehand, which is
+          indistinguishable from "on air, never said it"; averaging those in
+          would depress the early years.
+          Not included, and why: C-SPAN (gavel-to-gavel proceedings would swamp
+          legislative phrasing); BBC/Al Jazeera/DW/RT (market:"International",
+          not US); NPR (GDELT publishes no radio API at all). Only San Francisco
+          has affiliates running to the end of the archive -- Washington DC dies
+          2013-2019, Philadelphia 2018, Chicago 2015, and New York and Los
+          Angeles are not in the archive at all.
   bluesky app.bsky.feed.searchPosts -- raw matching-post counts per interval.
           NOT normalized (the API exposes no denominator). Needs BSKY_HANDLE and
           BSKY_APP_PASSWORD in the environment.
@@ -74,19 +82,48 @@ def first_series(timeline):
     return retval
 
 
-def mean_across_networks(timeline):
-    """TV returns one series per network; a national line is their mean.
+# `label` is what the API sends back, `since` is when GDELT began indexing that
+# station -- verified against two unrelated words, so these are properties of the
+# station rather than of whatever you searched for.
+STATIONS = [
+    ("CNN", "CNN", "2009-07"),
+    ("FOXNEWS", "FOX News", "2009-07"),
+    ("MSNBC", "MSNBC", "2009-07"),
+    ("CNBC", "CNBC", "2009-07"),
+    ("FBC", "FOX Business", "2012-08"),
+    ("BLOOMBERG", "Bloomberg", "2013-12"),
+    ("KGO", "ABC - San Francisco (KGO)", "2010-07"),
+    ("KPIX", "CBS - San Francisco (KPIX)", "2010-07"),
+    ("KNTV", "NBC - San Francisco (KNTV)", "2010-07"),
+    ("KTVU", "FOX - San Francisco (KTVU)", "2010-07"),
+    ("KQED", "PBS - San Francisco (KQED)", "2010-07"),
+]
+STATION_SINCE = {label: since for _, label, since in STATIONS}
+STATION_QUERY = "(%s)" % " OR ".join("station:%s" % sid for sid, _, _ in STATIONS)
 
-    This hides disagreement: a phrase saturating one network and absent from the
-    rest reads as an unremarkable middle value.
+
+def mean_across_stations(timeline):
+    """TV returns one series per station; the line is their mean.
+
+    A station joins the mean only once GDELT began indexing it. Before that the
+    API reports a flat 0, indistinguishable from a station that was on air and
+    never said the phrase, and averaging those zeros in would drag the early
+    years down. The panel therefore grows: 4 stations in 2009, 9 from mid-2010,
+    all 11 from end-2013.
+
+    Being a mean, it also hides disagreement between stations: a phrase
+    saturating one network and absent from the rest reads as a middle value.
     """
     totals = defaultdict(lambda: [0.0, 0])
-    for net in timeline:
-        for point in net["data"]:
+    for station in timeline:
+        since = STATION_SINCE.get(station["series"], "0000-00")
+        for point in station["data"]:
+            if "%s-%s" % (point["date"][:4], point["date"][4:6]) < since:
+                continue
             totals[point["date"]][0] += point["value"]
             totals[point["date"]][1] += 1
     retval = [{"date": stamp, "value": total / n}
-              for stamp, (total, n) in sorted(totals.items())]
+              for stamp, (total, n) in sorted(totals.items()) if n]
     return retval
 
 
@@ -128,8 +165,8 @@ def news_series(query, since, until):
 
 
 def tv_series(query, since, until):
-    retval = gdelt_series(GDELT_TV_URL, '%s market:"National"' % query,
-                          since, until, mean_across_networks)
+    retval = gdelt_series(GDELT_TV_URL, "%s %s" % (query, STATION_QUERY),
+                          since, until, mean_across_stations)
     return retval
 
 
@@ -222,15 +259,26 @@ def self_test():
     assert first_series([]) == []
     assert first_series([{"data": [{"date": "x", "value": 1.0}]}]) == [{"date": "x", "value": 1.0}]
 
-    # Two networks, one date each way: the national line is their mean, and a
-    # date only one network carries is that network's own value.
+    # Two stations, one date each way: the line is their mean, and a date only
+    # one station carries is that station's own value.
     timeline = [
-        {"series": "CNN", "data": [{"date": "a", "value": 1.0}, {"date": "b", "value": 4.0}]},
-        {"series": "MSNBC", "data": [{"date": "a", "value": 3.0}]},
+        {"series": "CNN", "data": [{"date": "20200101T120000Z", "value": 1.0},
+                                   {"date": "20200201T120000Z", "value": 4.0}]},
+        {"series": "MSNBC", "data": [{"date": "20200101T120000Z", "value": 3.0}]},
     ]
-    assert mean_across_networks(timeline) == [{"date": "a", "value": 2.0},
-                                              {"date": "b", "value": 4.0}]
-    assert mean_across_networks([]) == []
+    assert mean_across_stations(timeline) == [{"date": "20200101T120000Z", "value": 2.0},
+                                              {"date": "20200201T120000Z", "value": 4.0}]
+    assert mean_across_stations([]) == []
+
+    # Bloomberg's zeros before 2013-12 must not dilute CNN, or a 2.0 becomes 1.0.
+    early = [
+        {"series": "CNN", "data": [{"date": "20100101T120000Z", "value": 2.0},
+                                   {"date": "20140101T120000Z", "value": 2.0}]},
+        {"series": "Bloomberg", "data": [{"date": "20100101T120000Z", "value": 0.0},
+                                         {"date": "20140101T120000Z", "value": 0.0}]},
+    ]
+    assert mean_across_stations(early) == [{"date": "20100101T120000Z", "value": 2.0},
+                                           {"date": "20140101T120000Z", "value": 1.0}]
 
     low, mid, high = spark([0, 5, 10])
     assert (low, high) == (BLOCKS[0], BLOCKS[-1])

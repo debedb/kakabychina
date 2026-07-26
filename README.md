@@ -42,33 +42,47 @@ exposes no denominator.
 interval which contained your phrase. Read 1.1% as roughly one article in ninety.
 
 **TV** — GDELT cuts each broadcast into 15-second clips and counts the ones whose
-captions contain your phrase. The line is that percentage averaged across nine
-networks. (CNN alone contributes about 130,000 clips a month.)
+captions contain your phrase. The line is that percentage averaged across the
+stations that were on air at the time. (CNN alone contributes about 130,000 clips
+a month.)
 
 Both are shares rather than counts, so an outlet or network that simply produces
 more does not dominate.
 
-### Which networks the TV chart covers
+### Which stations the TV chart covers
 
-Nine, all cable or satellite, all with unbroken coverage across the full range:
+Eleven — six cable networks, plus the five major broadcast networks as their San
+Francisco affiliates. The year is when GDELT began indexing each one:
 
-> CNN · FOX News · MSNBC · CNBC · FOX Business · Bloomberg · C-SPAN · C-SPAN 2 · C-SPAN 3
+| Cable | Since | | Broadcast (SF affiliate) | Since |
+|---|---|---|---|---|
+| CNN | 2009-07 | | ABC — KGO | 2010-07 |
+| FOX News | 2009-07 | | CBS — KPIX | 2010-07 |
+| MSNBC | 2009-07 | | NBC — KNTV | 2010-07 |
+| CNBC | 2009-07 | | FOX — KTVU | 2010-07 |
+| FOX Business | 2012-08 | | PBS — KQED | 2010-07 |
+| Bloomberg | 2013-12 | | | |
 
-**ABC, CBS, NBC and PBS are not among them.** GDELT carries no national feed for
-the broadcast networks — it indexes them only as individual local affiliates
-(San Francisco's KGO for ABC, Washington's WRC for NBC, and so on). Averaging one
-city's affiliate into a line labelled national would misrepresent it, so they are
-left out rather than quietly standing in for the network.
+**The panel grows over time**: 4 stations in 2009, 9 from mid-2010, all 11 from
+end-2013. A station enters the mean only once it exists. GDELT reports a flat `0`
+for a station before it was indexed — indistinguishable from one that was on air
+and never said your phrase — and averaging those zeros in understates the early
+years badly. For "climate change" in December 2009, including them gives 0.34%
+where the four stations actually on air averaged 0.94%.
 
-**BBC News, Al Jazeera, Deutsche Welle and Russia Today** are indexed too, but as
-international channels; mixing them into a US average would blur the thing being
-measured. **NPR does not appear at all** — the archive is television captions, so
-radio is outside it.
+**The broadcast networks are one city's affiliates, not national feeds.** GDELT
+has no national ABC/CBS/NBC/PBS; it indexes them station by station, and San
+Francisco is the only market whose affiliates run to the end of the archive.
+Washington DC's stop between 2013 and 2019, Philadelphia's in 2018, Chicago's in
+2015, and **New York and Los Angeles are not in the archive at all**. KGO carries
+ABC's national programming plus Bay Area local news, so treat it as a stand-in for
+ABC, not as ABC — local stories carry a California accent.
 
-Practical consequence: this is a picture of US *cable news*, which skews toward
-continuous political coverage. C-SPAN's three channels carry unedited floor and
-committee proceedings, so legislative language registers more strongly here than
-it would in a broadcast evening-news average.
+**Deliberately excluded:** C-SPAN 1–3 (gavel-to-gavel proceedings would swamp
+legislative phrasing), and BBC News / Al Jazeera / Deutsche Welle / Russia Today
+(international, not US). **NPR is absent because GDELT publishes no radio API at
+all** — `/api/v2/radio` 404s. The archive is television captions; there is no
+radio equivalent to query.
 
 ## Why two charts and not one
 

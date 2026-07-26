@@ -129,6 +129,7 @@
             list-style: none; margin: 0 0 10px; padding: 0; }
   ul.nets li { font-size: 13.5px; color: var(--ink-2); border-left: 2px solid var(--s1);
                padding-left: 8px; }
+  ul.nets span { display: block; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
@@ -204,8 +205,9 @@ arms control</textarea>
     <p>
       On the <b>TV</b> chart it is the percent of monitored <em>airtime</em>. GDELT cuts
       each broadcast into 15-second clips and counts the ones whose captions contain your
-      phrase; the line is that percentage averaged across the nine networks listed below.
-      For scale, CNN alone contributes roughly 130,000 clips a month.
+      phrase; the line is that percentage averaged across the stations listed below that
+      were on air at the time. For scale, CNN alone contributes roughly 130,000 clips a
+      month.
     </p>
     <p>
       Both are shares rather than counts, so an outlet or a network that simply produces
@@ -213,41 +215,55 @@ arms control</textarea>
       the same quantity, and the ratio between them is not meaningful.
     </p>
     <p>
-      Because TV is a mean across nine networks, it hides disagreement between them
-      &mdash; a phrase saturating one network and absent from the rest reads as a modest
-      middling value.
+      Because TV is a mean across stations, it hides disagreement between them &mdash; a
+      phrase saturating one network and absent from the rest reads as a modest middling
+      value.
     </p>
 
-    <h3>Which networks the TV chart covers</h3>
+    <h3>Which stations the TV chart covers</h3>
     <p>
-      Nine, all of them cable or satellite, all with unbroken coverage across the chart's
-      full range:
+      Eleven &mdash; six cable networks, and the five major broadcast networks as their
+      San Francisco affiliates. The year is when GDELT started indexing each one.
     </p>
     <ul class="nets">
-      <li>CNN</li><li>FOX News</li><li>MSNBC</li>
-      <li>CNBC</li><li>FOX Business</li><li>Bloomberg</li>
-      <li>C-SPAN</li><li>C-SPAN 2</li><li>C-SPAN 3</li>
+      <li>CNN <span>2009</span></li>
+      <li>FOX News <span>2009</span></li>
+      <li>MSNBC <span>2009</span></li>
+      <li>CNBC <span>2009</span></li>
+      <li>FOX Business <span>2012</span></li>
+      <li>Bloomberg <span>2013</span></li>
+      <li>ABC <span>KGO · 2010</span></li>
+      <li>CBS <span>KPIX · 2010</span></li>
+      <li>NBC <span>KNTV · 2010</span></li>
+      <li>FOX <span>KTVU · 2010</span></li>
+      <li>PBS <span>KQED · 2010</span></li>
     </ul>
     <p>
-      <b>ABC, CBS, NBC and PBS are not in that list</b>, and their absence is worth
-      knowing about. GDELT carries no national feed for the broadcast networks &mdash;
-      it indexes them only as individual local affiliates, such as San Francisco's KGO
-      for ABC or Washington's WRC for NBC. Averaging one city's affiliate into a line
-      labelled national would misrepresent what you were looking at, so this chart leaves
-      them out rather than quietly standing in a local station for a national network.
+      Those start years matter, because <b>the panel grows over time</b>: four stations in
+      2009, nine from mid-2010, all eleven from the end of 2013. A station enters the
+      average only once it exists. GDELT reports a flat zero for a station in the months
+      before it was indexed, which is indistinguishable from one that was on air and
+      simply never said your phrase &mdash; averaging those zeros in would push the early
+      years down for no reason, so they are excluded instead.
     </p>
     <p>
-      <b>BBC News, Al Jazeera, Deutsche Welle and Russia Today</b> are likewise indexed,
-      but as international channels rather than US ones, and mixing them into a US
-      average would blur exactly the thing the chart is measuring.
-      <b>NPR does not appear at all</b> &mdash; the archive is built from television
-      captions, so radio is outside it entirely.
+      <b>The broadcast networks are one city's affiliates, not national feeds.</b> GDELT
+      has no national ABC, CBS, NBC or PBS; it indexes them station by station, and San
+      Francisco is the only market whose affiliates run through the end of the archive.
+      Washington DC's stop between 2013 and 2019, Philadelphia's in 2018, Chicago's in
+      2015, and New York and Los Angeles are not in the archive at all. KGO carries ABC's
+      national programming plus Bay Area local news, so treat it as a usable stand-in for
+      ABC rather than as ABC itself &mdash; local stories will carry a California accent.
     </p>
     <p>
-      The practical consequence: this is a picture of US <em>cable news</em>, which skews
-      toward continuous political coverage. C-SPAN's three channels carry unedited floor
-      and committee proceedings, so legislative language registers more strongly here
-      than it would in a broadcast evening-news average.
+      <b>C-SPAN is deliberately excluded.</b> Its three channels are in the archive, but
+      they carry unedited floor and committee proceedings, which gives legislative
+      phrasing far more weight than any newscast would.
+      <b>BBC News, Al Jazeera, Deutsche Welle and Russia Today</b> are indexed as
+      international channels and left out of a US average for the mirror-image reason.
+      <b>NPR is absent because GDELT publishes no radio data at all</b> &mdash; the
+      archive is built from television captions, and there is no radio equivalent to
+      query.
     </p>
 
     <h3>Where the data stops</h3>
@@ -288,18 +304,45 @@ const iso = (d) => d.toISOString().slice(0, 10);
 const stamp = (s) => s.replaceAll("-", "") + "000000";
 const unstamp = (s) => `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
 
-// The TV API answers with one series per network. A single national line is
-// their mean, which is why a phrase that saturates one network and is absent
-// from the rest reads as an unremarkable middle value.
-function meanAcrossNetworks(timeline) {
+// The stations behind the TV line. `id` goes in the query, `label` is what the
+// API sends back, `since` is when GDELT began indexing that station — verified
+// against two unrelated words, so these are properties of the station and not
+// of whatever you searched for.
+const STATIONS = [
+  { id: "CNN",       label: "CNN",                        since: "2009-07" },
+  { id: "FOXNEWS",   label: "FOX News",                   since: "2009-07" },
+  { id: "MSNBC",     label: "MSNBC",                      since: "2009-07" },
+  { id: "CNBC",      label: "CNBC",                       since: "2009-07" },
+  { id: "FBC",       label: "FOX Business",               since: "2012-08" },
+  { id: "BLOOMBERG", label: "Bloomberg",                  since: "2013-12" },
+  { id: "KGO",       label: "ABC - San Francisco (KGO)",  since: "2010-07" },
+  { id: "KPIX",      label: "CBS - San Francisco (KPIX)", since: "2010-07" },
+  { id: "KNTV",      label: "NBC - San Francisco (KNTV)", since: "2010-07" },
+  { id: "KTVU",      label: "FOX - San Francisco (KTVU)", since: "2010-07" },
+  { id: "KQED",      label: "PBS - San Francisco (KQED)", since: "2010-07" },
+];
+const STATION_SINCE = new Map(STATIONS.map((s) => [s.label, s.since]));
+const STATION_QUERY = `(${STATIONS.map((s) => `station:${s.id}`).join(" OR ")})`;
+
+// The TV API answers with one series per station, and reports a flat 0 for any
+// station in months before GDELT began indexing it — indistinguishable from a
+// station that was on air and simply never said the phrase. Averaging those
+// zeros in would drag the early years down for no reason, so a station only
+// enters the mean once it exists. The panel therefore grows over time: four
+// stations in 2009, nine by 2010, all eleven from 2013 on.
+function meanAcrossStations(timeline) {
   const acc = new Map();
-  for (const net of timeline) {
-    for (const p of net.data) {
+  for (const station of timeline) {
+    const since = STATION_SINCE.get(station.series) ?? "0000-00";
+    for (const p of station.data) {
+      if (unstamp(p.date).slice(0, 7) < since) continue;
       const a = acc.get(p.date) ?? [0, 0];
       acc.set(p.date, [a[0] + p.value, a[1] + 1]);
     }
   }
-  return [...acc.entries()].sort().map(([date, [sum, n]]) => ({ date, value: sum / n }));
+  return [...acc.entries()].sort()
+    .filter(([, [, n]]) => n > 0)
+    .map(([date, [sum, n]]) => ({ date, value: sum / n }));
 }
 
 // Two sources, never merged: their denominators differ (articles vs airtime),
@@ -320,14 +363,14 @@ const SOURCES = [
   },
   {
     key: "tv",
-    title: "US national TV news",
+    title: "US TV news",
     url: "https://api.gdeltproject.org/api/v2/tv/tv",
     axis: "% of monitored airtime",
-    unit: "share of 15-second airtime clips, averaged across 9 networks",
+    unit: "share of 15-second airtime clips, averaged across the stations on air",
     first: "2009-07-02",                         // the API refuses anything earlier
     last: "2024-10-31",                          // archive stops here
-    scope: (query) => `${query} market:"National"`,
-    collapse: meanAcrossNetworks,
+    scope: (query) => `${query} ${STATION_QUERY}`,
+    collapse: meanAcrossStations,
   },
 ];
 
@@ -336,6 +379,18 @@ const SOURCES = [
 function asQuery(phrase) {
   if (/["(:]/.test(phrase)) return phrase;
   return phrase.includes(" ") ? `"${phrase}"` : phrase;
+}
+
+// A silent multi-minute wait reads as a hung page, so count the seconds down
+// rather than leaving one frozen line on screen.
+async function backoff(query, attempt) {
+  const total = Math.min(30, 5 * 2 ** attempt);
+  for (let left = total; left > 0; left--) {
+    status.textContent =
+      `GDELT is throttling — retry ${attempt + 1} of 10 for ${query} in ${left}s ` +
+      `(its limit is per-IP and clears on its own)`;
+    await sleep(1000);
+  }
 }
 
 // Narrow the requested window to what a source actually holds. null means the
@@ -357,17 +412,15 @@ async function series(src, query, since, until) {
   // throttle surfaces as an opaque fetch rejection, not a readable status —
   // hence both arms below back off identically.
   for (let attempt = 0; attempt < 10; attempt++) {
+    let throttled = false;
     let res;
     try {
       res = await fetch(url);
     } catch {
-      status.textContent = `GDELT is throttling ${query} — retry ${attempt + 1}/10…`;
-      await sleep(Math.min(30000, 5000 * 2 ** attempt));
-      continue;
+      throttled = true;                     // opaque rejection: see the note above
     }
-    if (res.status === 429) {
-      status.textContent = `GDELT is throttling ${query} — retry ${attempt + 1}/10…`;
-      await sleep(Math.min(30000, 5000 * 2 ** attempt));
+    if (throttled || res.status === 429) {
+      await backoff(query, attempt);
       continue;
     }
     if (!res.ok) throw new Error(`GDELT ${res.status} for ${query}`);
