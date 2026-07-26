@@ -1,0 +1,6 @@
+nuclear disarmament  [% of monitored news coverage]
+  2018-04-01 .. 2026-07-01
+  **@+=--:::+-=--.::::::.  ...:... :..... ... .:..... =:.......-..:. .  ... ..... ..... . :.... :.....
+  mean 0.01871   peak 0.1163 on 2018-06-01
+  (showing last 100 of 115 buckets)
+

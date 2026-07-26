@@ -1,0 +1,219 @@
+#!/usr/bin/env python3
+"""Ngram viewer for fast-moving media: phrase frequency over time.
+
+Sources:
+  news    GDELT DOC 2.0 -- worldwide online news, 2017-01-01..now, no key needed.
+          Value is "volume intensity": percent of all coverage GDELT monitored in
+          that interval that matched. Already normalized, so outlets publishing
+          more do not dominate.
+  bluesky app.bsky.feed.searchPosts -- raw matching-post counts per interval.
+          NOT normalized (the API exposes no denominator). Needs BSKY_HANDLE and
+          BSKY_APP_PASSWORD in the environment.
+
+Phrases are matched exactly. A bare multi-word phrase gets quoted for you; a
+phrase already containing " ( or : is passed through untouched, so full source
+syntax works:
+
+  ./ngram.py '"no evidence" (domain:reuters.com OR domain:apnews.com)'
+"""
+
+import argparse
+import json
+import os
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from collections import defaultdict
+from datetime import date, datetime, timedelta
+
+# ponytail: GDELT serves its throttle page to urllib's default User-Agent no
+# matter how slowly you poll; a browser UA gets 200 on the same query.
+UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+      "(KHTML, like Gecko) Chrome/126.0 Safari/537.36")
+GDELT_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
+BSKY_URL = "https://bsky.social/xrpc"
+GDELT_EPOCH = date(2017, 1, 1)
+BLOCKS = " .:-=+*#%@"
+
+
+def fetch(url, headers=None, data=None):
+    req = urllib.request.Request(url, data=data,
+                                 headers={"User-Agent": UA, **(headers or {})})
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        return resp.read().decode("utf-8", "replace")
+
+
+def as_query(phrase):
+    if any(c in phrase for c in '"(:'):
+        return phrase
+    retval = '"%s"' % phrase if " " in phrase else phrase
+    return retval
+
+
+def news_series(query, since, until, tries=10):
+    """[(date, percent_of_monitored_coverage)] from GDELT."""
+    params = urllib.parse.urlencode({
+        "query": query,
+        "mode": "timelinevol",
+        "format": "json",
+        "startdatetime": since.strftime("%Y%m%d000000"),
+        "enddatetime": until.strftime("%Y%m%d000000"),
+    })
+    for attempt in range(tries):
+        try:
+            body = fetch("%s?%s" % (GDELT_URL, params))
+        except urllib.error.HTTPError as exc:
+            # ponytail: GDELT's 429 is stochastic, not a steady quota -- the same
+            # query alternates 429/200 within a minute, so just keep asking.
+            # Observed: 4-6 refusals in a row is normal before a 200.
+            if exc.code != 429:
+                raise
+            time.sleep(min(30, 5 * 2 ** attempt))
+            continue
+        points = json.loads(body)["timeline"][0]["data"]
+        retval = [(datetime.strptime(p["date"], "%Y%m%dT%H%M%SZ").date(), p["value"])
+                  for p in points]
+        return retval
+    raise SystemExit("GDELT throttled after %d tries: %s" % (tries, query))
+
+
+def bluesky_series(query, since, until, max_pages=50):
+    """[(date, matching_post_count)] from Bluesky. Raw counts, no denominator."""
+    handle = os.environ.get("BSKY_HANDLE")
+    password = os.environ.get("BSKY_APP_PASSWORD")
+    if not (handle and password):
+        raise SystemExit("--source bluesky needs BSKY_HANDLE and BSKY_APP_PASSWORD "
+                         "(an app password from Settings > App Passwords)")
+    session = json.loads(fetch(
+        "%s/com.atproto.server.createSession" % BSKY_URL,
+        {"Content-Type": "application/json"},
+        json.dumps({"identifier": handle, "password": password}).encode()))
+    auth = {"Authorization": "Bearer %s" % session["accessJwt"]}
+
+    counts = defaultdict(int)
+    cursor, pages = None, 0
+    while pages < max_pages:
+        params = {"q": query, "limit": 100, "sort": "latest",
+                  "since": since.isoformat(), "until": until.isoformat()}
+        if cursor:
+            params["cursor"] = cursor
+        page = json.loads(fetch(
+            "%s/app.bsky.feed.searchPosts?%s" % (BSKY_URL, urllib.parse.urlencode(params)),
+            auth))
+        posts = page.get("posts", [])
+        for post in posts:
+            stamp = post.get("record", {}).get("createdAt") or post["indexedAt"]
+            counts[datetime.fromisoformat(stamp.replace("Z", "+00:00")).date()] += 1
+        cursor = page.get("cursor")
+        pages += 1
+        if not cursor or not posts:
+            break
+        time.sleep(0.3)
+    if cursor and pages >= max_pages:
+        print("warning: %s truncated at %d posts -- narrow the date range"
+              % (query, max_pages * 100), file=sys.stderr)
+    retval = sorted(counts.items())
+    return retval
+
+
+def bucket(series, size, how):
+    grouped = defaultdict(list)
+    for day, value in series:
+        if size == "day":
+            key = day
+        elif size == "week":
+            key = day - timedelta(days=day.weekday())
+        else:
+            key = day.replace(day=1)
+        grouped[key].append(value)
+    agg = (lambda xs: sum(xs) / len(xs)) if how == "mean" else sum
+    retval = [(key, agg(grouped[key])) for key in sorted(grouped)]
+    return retval
+
+
+def spark(values):
+    top = max(values) or 1
+    retval = "".join(BLOCKS[round(v / top * (len(BLOCKS) - 1))] for v in values)
+    return retval
+
+
+def report(phrase, points, unit, width):
+    if not points:
+        print("%s: no data\n" % phrase)
+        return
+    shown = points[-width:]
+    values = [v for _, v in shown]
+    peak_day, peak = max(shown, key=lambda kv: kv[1])
+    print("%s  [%s]" % (phrase, unit))
+    print("  %s .. %s" % (shown[0][0], shown[-1][0]))
+    print("  %s" % spark(values))
+    print("  mean %.4g   peak %.4g on %s" % (sum(values) / len(values), peak, peak_day))
+    if len(points) > width:
+        print("  (showing last %d of %d buckets)" % (width, len(points)))
+    print()
+
+
+def self_test():
+    assert as_query("nuclear disarmament") == '"nuclear disarmament"'
+    assert as_query("BLM") == "BLM"
+    assert as_query('"no evidence" AND (domain:cnn.com)') == '"no evidence" AND (domain:cnn.com)'
+
+    series = [(date(2026, 1, 5), 2.0), (date(2026, 1, 6), 4.0), (date(2026, 2, 3), 9.0)]
+    assert bucket(series, "day", "mean") == series
+    assert bucket(series, "week", "mean") == [(date(2026, 1, 5), 3.0), (date(2026, 2, 2), 9.0)]
+    assert bucket(series, "month", "sum") == [(date(2026, 1, 1), 6.0), (date(2026, 2, 1), 9.0)]
+
+    low, mid, high = spark([0, 5, 10])
+    assert (low, high) == (BLOCKS[0], BLOCKS[-1])
+    assert BLOCKS.index(low) < BLOCKS.index(mid) < BLOCKS.index(high)
+    assert spark([0, 0, 0]) == BLOCKS[0] * 3
+    print("ok")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("phrases", nargs="*", help="phrase(s) to trend")
+    parser.add_argument("--source", choices=["news", "bluesky"], default="news")
+    parser.add_argument("--since", help="YYYY-MM-DD (default: 1 year back)")
+    parser.add_argument("--until", help="YYYY-MM-DD (default: today)")
+    parser.add_argument("--bucket", choices=["day", "week", "month"], default="week")
+    parser.add_argument("--csv", action="store_true", help="date,phrase,value to stdout")
+    parser.add_argument("--width", type=int, default=100, help="chart buckets to show")
+    parser.add_argument("--self-test", action="store_true")
+    args = parser.parse_args()
+
+    if args.self_test:
+        self_test()
+        return
+    if not args.phrases:
+        parser.error("give at least one phrase")
+
+    until = date.fromisoformat(args.until) if args.until else date.today()
+    since = date.fromisoformat(args.since) if args.since else until - timedelta(days=365)
+    if args.source == "news" and since < GDELT_EPOCH:
+        print("note: GDELT starts %s, clamping --since" % GDELT_EPOCH, file=sys.stderr)
+        since = GDELT_EPOCH
+
+    if args.source == "news":
+        fetch_series, how, unit = news_series, "mean", "% of monitored news coverage"
+    else:
+        fetch_series, how, unit = bluesky_series, "sum", "matching posts"
+
+    if args.csv:
+        print("date,phrase,value")
+    for i, phrase in enumerate(args.phrases):
+        if i and args.source == "news":
+            time.sleep(5)  # GDELT asks for one request per 5s
+        points = bucket(fetch_series(as_query(phrase), since, until), args.bucket, how)
+        if args.csv:
+            for day, value in points:
+                print('%s,"%s",%g' % (day, phrase.replace('"', '""'), value))
+        else:
+            report(phrase, points, unit, args.width)
+
+
+if __name__ == "__main__":
+    main()

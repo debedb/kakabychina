@@ -1,0 +1,1 @@
+GDELT throttled after 10 tries: "artificial intelligence"

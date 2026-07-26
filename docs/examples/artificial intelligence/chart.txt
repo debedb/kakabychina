@@ -1,0 +1,6 @@
+artificial intelligence  [% of monitored news coverage]
+  2018-04-01 .. 2026-07-01
+  .::...............::.:...................................-======-=-======++======+*++++++*####%##%@@
+  mean 0.8426   peak 2.604 on 2026-06-01
+  (showing last 100 of 115 buckets)
+

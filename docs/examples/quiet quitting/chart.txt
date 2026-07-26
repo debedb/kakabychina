@@ -1,0 +1,6 @@
+quiet quitting  [% of monitored news coverage]
+  2018-04-01 .. 2026-07-01
+                                                      +@*+==-::.::............ .  ...  .  ......  .   
+  mean 0.00133   peak 0.01769 on 2022-09-01
+  (showing last 100 of 115 buckets)
+

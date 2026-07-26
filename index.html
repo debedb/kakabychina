@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>News Ngram</title>
+<style>
+  :root {
+    color-scheme: light;
+    --plane: #f9f9f7;
+    --surface: #fcfcfb;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+    --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7; --s8: #e34948;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --plane: #0d0d0d;
+      --surface: #1a1a19;
+      --ink: #ffffff;
+      --ink-2: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --border: rgba(255,255,255,0.10);
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+      --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --plane: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 20px 64px;
+    background: var(--plane);
+    color: var(--ink);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.lede { margin: 0 0 20px; color: var(--ink-2); max-width: 62ch; }
+
+  form {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px; margin-bottom: 20px;
+  }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  textarea, input, select, button {
+    font: inherit; color: var(--ink); background: var(--plane);
+    border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px;
+  }
+  textarea { width: 100%; min-height: 62px; resize: vertical; font-size: 14px; }
+  .grow { flex: 1 1 320px; }
+  button {
+    background: var(--s1); color: #fff; border-color: transparent;
+    padding: 7px 16px; cursor: pointer; font-weight: 600;
+  }
+  button[disabled] { opacity: .5; cursor: progress; }
+
+  #status { min-height: 20px; color: var(--ink-2); font-size: 13px; margin-bottom: 8px; }
+  #card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; position: relative;
+  }
+  #card[hidden] { display: none; }
+  svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .grid-line { stroke: var(--grid); stroke-width: 1; }
+  .axis-line { stroke: var(--axis); stroke-width: 1; }
+  .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .series { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .end-label { fill: var(--ink-2); font-size: 11px; }
+  .crosshair { stroke: var(--axis); stroke-width: 1; }
+
+  #legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 10px 0 0; padding: 0; list-style: none; }
+  #legend li { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+
+  #tip {
+    position: absolute; pointer-events: none; opacity: 0;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.14);
+    min-width: 140px;
+  }
+  #tip h4 { margin: 0 0 5px; font-size: 12px; color: var(--muted); font-weight: 600; }
+  #tip div { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  #tip b { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--ink); }
+
+  details { margin-top: 18px; }
+  summary { cursor: pointer; color: var(--ink-2); font-size: 13px; }
+  table { border-collapse: collapse; margin-top: 10px; font-size: 13px; width: 100%; }
+  th, td { text-align: right; padding: 3px 8px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 600; }
+  footer { margin-top: 28px; color: var(--muted); font-size: 12px; max-width: 70ch; }
+  a { color: var(--s1); }
+</style>
+</head>
+<body>
+<main>
+  <h1>News Ngram</h1>
+  <p class="lede">
+    Phrase frequency in worldwide online news, via the
+    <a href="https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/">GDELT DOC 2.0 API</a>.
+    Each value is the share of all coverage GDELT monitored in that interval that matched,
+    so outlets that simply publish more do not dominate. Coverage starts 2017-01-01.
+  </p>
+
+  <form id="form">
+    <div class="grow">
+      <label for="phrases">Phrases &mdash; one per line, max 8. Multi-word phrases are matched exactly.</label>
+      <textarea id="phrases" spellcheck="false">nuclear disarmament
+arms control</textarea>
+    </div>
+    <div>
+      <label for="since">From</label>
+      <input type="date" id="since" min="2017-01-01">
+    </div>
+    <div>
+      <label for="until">To</label>
+      <input type="date" id="until" min="2017-01-01">
+    </div>
+    <div>
+      <label for="bucket">Bucket</label>
+      <select id="bucket">
+        <option value="day">Day</option>
+        <option value="week" selected>Week</option>
+        <option value="month">Month</option>
+      </select>
+    </div>
+    <button id="go">Plot</button>
+  </form>
+
+  <div id="status"></div>
+
+  <div id="card" hidden>
+    <svg id="chart" viewBox="0 0 900 380" role="img" aria-labelledby="chart-title"></svg>
+    <title id="chart-title">Share of monitored news coverage over time</title>
+    <ul id="legend"></ul>
+    <div id="tip" aria-hidden="true"></div>
+    <details>
+      <summary>Table view</summary>
+      <div style="max-height:340px;overflow:auto"><table id="table"></table></div>
+    </details>
+  </div>
+
+  <footer>
+    Query syntax passes straight through to GDELT, so source filters work:
+    <code>"no evidence" (domain:reuters.com OR domain:apnews.com)</code>.
+    A line already containing <code>"</code>, <code>(</code> or <code>:</code> is sent verbatim;
+    anything else is quoted for you. GDELT throttles aggressively and refuses
+    several requests in a row before answering &mdash; this page retries.
+  </footer>
+</main>
+
+<script>
+const API = "https://api.gdeltproject.org/api/v2/doc/doc";
+const SLOTS = ["--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8"];
+const PAD = { l: 56, r: 116, t: 16, b: 34 };
+const W = 900, H = 380;
+
+const $ = (id) => document.getElementById(id);
+const status = $("status");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const iso = (d) => d.toISOString().slice(0, 10);
+const stamp = (s) => s.replaceAll("-", "") + "000000";
+
+// Bare multi-word input is quoted for exact-phrase matching; anything already
+// carrying GDELT syntax is sent verbatim.
+function asQuery(phrase) {
+  if (/["(:]/.test(phrase)) return phrase;
+  return phrase.includes(" ") ? `"${phrase}"` : phrase;
+}
+
+async function series(query, since, until) {
+  const url = `${API}?${new URLSearchParams({
+    query, mode: "timelinevol", format: "json",
+    startdatetime: stamp(since), enddatetime: stamp(until),
+  })}`;
+  // GDELT's 429 is stochastic rather than a steady quota: the same query
+  // alternates 429/200 within a minute, so keep asking. Its 429 response
+  // carries no Access-Control-Allow-Origin (the 200 does), so from a browser a
+  // throttle surfaces as an opaque fetch rejection, not a readable status —
+  // hence both arms below back off identically.
+  for (let attempt = 0; attempt < 10; attempt++) {
+    let res;
+    try {
+      res = await fetch(url);
+    } catch {
+      status.textContent = `GDELT is throttling ${query} — retry ${attempt + 1}/10…`;
+      await sleep(Math.min(30000, 5000 * 2 ** attempt));
+      continue;
+    }
+    if (res.status === 429) {
+      status.textContent = `GDELT is throttling ${query} — retry ${attempt + 1}/10…`;
+      await sleep(Math.min(30000, 5000 * 2 ** attempt));
+      continue;
+    }
+    if (!res.ok) throw new Error(`GDELT ${res.status} for ${query}`);
+    const json = await res.json();
+    const points = json.timeline?.[0]?.data ?? [];
+    return points.map((p) => [
+      `${p.date.slice(0, 4)}-${p.date.slice(4, 6)}-${p.date.slice(6, 8)}`,
+      p.value,
+    ]);
+  }
+  throw new Error(`GDELT kept throttling ${query}`);
+}
+
+function bucketKey(day, size) {
+  if (size === "month") return day.slice(0, 7) + "-01";
+  if (size === "day") return day;
+  const d = new Date(day + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); // ISO week start
+  return iso(d);
+}
+
+function bucketMean(points, size) {
+  const groups = new Map();
+  for (const [day, value] of points) {
+    const key = bucketKey(day, size);
+    const acc = groups.get(key) ?? [0, 0];
+    groups.set(key, [acc[0] + value, acc[1] + 1]);
+  }
+  return [...groups.entries()].sort().map(([k, [sum, n]]) => [k, sum / n]);
+}
+
+function niceMax(v) {
+  if (v <= 0) return 1;
+  const pow = 10 ** Math.floor(Math.log10(v));
+  return Math.ceil(v / pow * 4) / 4 * pow;
+}
+
+const fmt = (v) => (v >= 1 ? v.toFixed(2) : v.toPrecision(2));
+
+let hover = null; // { xs, keys, rows } for the crosshair layer
+
+function draw(rows, bucket) {
+  const keys = [...new Set(rows.flatMap((r) => r.points.map((p) => p[0])))].sort();
+  const top = niceMax(Math.max(...rows.flatMap((r) => r.points.map((p) => p[1])), 0));
+  const xAt = (i) => PAD.l + (keys.length < 2 ? 0 : i * (W - PAD.l - PAD.r) / (keys.length - 1));
+  const yAt = (v) => H - PAD.b - (v / top) * (H - PAD.t - PAD.b);
+
+  const parts = [];
+  for (let g = 0; g <= 4; g++) {
+    const y = PAD.t + g * (H - PAD.t - PAD.b) / 4;
+    const value = top * (1 - g / 4);
+    parts.push(`<line class="grid-line" x1="${PAD.l}" y1="${y}" x2="${W - PAD.r}" y2="${y}"/>`);
+    parts.push(`<text class="tick" x="${PAD.l - 8}" y="${y + 4}" text-anchor="end">${fmt(value)}%</text>`);
+  }
+  parts.push(`<line class="axis-line" x1="${PAD.l}" y1="${H - PAD.b}" x2="${W - PAD.r}" y2="${H - PAD.b}"/>`);
+
+  const every = Math.max(1, Math.ceil(keys.length / 7));
+  keys.forEach((key, i) => {
+    if (i % every) return;
+    const label = bucket === "month" ? key.slice(0, 7) : key;
+    parts.push(`<text class="tick" x="${xAt(i)}" y="${H - PAD.b + 16}" text-anchor="middle">${label}</text>`);
+  });
+
+  rows.forEach((row, s) => {
+    const byKey = new Map(row.points);
+    const d = keys
+      .map((key, i) => (byKey.has(key) ? `${i ? "L" : "M"}${xAt(i)} ${yAt(byKey.get(key))}` : null))
+      .filter(Boolean).join(" ");
+    parts.push(`<path class="series" d="${d}" stroke="var(${SLOTS[s]})"/>`);
+    // Direct labels while they still fit; past 4 series the legend carries identity.
+    if (rows.length <= 4) {
+      const last = keys.length - 1;
+      const y = yAt(byKey.get(keys[last]) ?? 0);
+      parts.push(`<circle cx="${xAt(last)}" cy="${y}" r="3.5" fill="var(${SLOTS[s]})"/>`);
+      parts.push(`<text class="end-label" x="${xAt(last) + 8}" y="${y + 4}">${escapeHtml(row.phrase)}</text>`);
+    }
+  });
+
+  parts.push('<g id="cross"></g>');
+  $("chart").innerHTML = parts.join("");
+
+  $("legend").innerHTML = rows.length < 2 ? "" : rows.map((row, s) =>
+    `<li><span class="swatch" style="background:var(${SLOTS[s]})"></span>${escapeHtml(row.phrase)}</li>`
+  ).join("");
+
+  $("table").innerHTML =
+    `<thead><tr><th>Bucket</th>${rows.map((r) => `<th>${escapeHtml(r.phrase)}</th>`).join("")}</tr></thead>` +
+    `<tbody>${keys.map((key) => {
+      const cells = rows.map((r) => {
+        const v = new Map(r.points).get(key);
+        return `<td>${v === undefined ? "" : fmt(v) + "%"}</td>`;
+      }).join("");
+      return `<tr><td>${key}</td>${cells}</tr>`;
+    }).join("")}</tbody>`;
+
+  hover = { keys, rows, xAt, yAt };
+  $("card").hidden = false;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+$("chart").addEventListener("pointermove", (ev) => {
+  if (!hover) return;
+  const box = ev.currentTarget.getBoundingClientRect();
+  const x = (ev.clientX - box.left) / box.width * W;
+  const span = (W - PAD.l - PAD.r) / Math.max(1, hover.keys.length - 1);
+  const i = Math.max(0, Math.min(hover.keys.length - 1, Math.round((x - PAD.l) / span)));
+  const cx = hover.xAt(i);
+
+  const marks = hover.rows.map((row, s) => {
+    const v = new Map(row.points).get(hover.keys[i]);
+    return v === undefined ? "" : `<circle cx="${cx}" cy="${hover.yAt(v)}" r="4.5" fill="var(${SLOTS[s]})" stroke="var(--surface)" stroke-width="2"/>`;
+  }).join("");
+  document.getElementById("cross").innerHTML =
+    `<line class="crosshair" x1="${cx}" y1="${PAD.t}" x2="${cx}" y2="${H - PAD.b}"/>${marks}`;
+
+  const tip = $("tip");
+  tip.innerHTML = `<h4>${hover.keys[i]}</h4>` + hover.rows.map((row, s) => {
+    const v = new Map(row.points).get(hover.keys[i]);
+    return `<div><span class="swatch" style="background:var(${SLOTS[s]})"></span>${escapeHtml(row.phrase)}<b>${v === undefined ? "—" : fmt(v) + "%"}</b></div>`;
+  }).join("");
+  tip.style.opacity = 1;
+  const px = ev.clientX - $("card").getBoundingClientRect().left;
+  tip.style.left = Math.min(px + 14, $("card").clientWidth - tip.offsetWidth - 8) + "px";
+  tip.style.top = (ev.clientY - $("card").getBoundingClientRect().top + 14) + "px";
+});
+
+$("chart").addEventListener("pointerleave", () => {
+  $("tip").style.opacity = 0;
+  const cross = document.getElementById("cross");
+  if (cross) cross.innerHTML = "";
+});
+
+$("form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const phrases = $("phrases").value.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 8);
+  if (!phrases.length) return;
+  const since = $("since").value, until = $("until").value, bucket = $("bucket").value;
+
+  $("go").disabled = true;
+  const rows = [];
+  try {
+    for (const [i, phrase] of phrases.entries()) {
+      if (i) await sleep(5000); // GDELT asks for one request per 5s
+      status.textContent = `Fetching ${phrase} (${i + 1}/${phrases.length})…`;
+      rows.push({ phrase, points: bucketMean(await series(asQuery(phrase), since, until), bucket) });
+    }
+    draw(rows, bucket);
+    status.textContent = `${since} to ${until}, by ${bucket}. Share of monitored news coverage.`;
+  } catch (err) {
+    status.textContent = err.message;
+  } finally {
+    $("go").disabled = false;
+  }
+});
+
+const today = new Date();
+$("until").value = iso(today);
+$("until").max = iso(today);
+$("since").max = iso(today);
+$("since").value = iso(new Date(Date.UTC(today.getUTCFullYear() - 3, today.getUTCMonth(), today.getUTCDate())));
+</script>
+</body>
+</html>
