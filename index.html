@@ -381,15 +381,28 @@ function asQuery(phrase) {
   return phrase.includes(" ") ? `"${phrase}"` : phrase;
 }
 
-// A silent multi-minute wait reads as a hung page, so count the seconds down
-// rather than leaving one frozen line on screen.
+// A silent multi-minute wait reads as a hung page, so count the seconds down.
+// The wait itself must be ONE timer, though: Chrome throttles chained timers in
+// a hidden tab — measured at 1.9x for five 1s sleeps, and down to once a minute
+// after five minutes hidden — so ticking the clock with thirty chained sleeps
+// would stretch a 30s backoff into something far longer. The single sleep below
+// governs the delay; the interval only repaints the label and may run late,
+// which costs nothing because nobody is reading a hidden tab.
 async function backoff(query, attempt) {
   const total = Math.min(30, 5 * 2 ** attempt);
-  for (let left = total; left > 0; left--) {
+  const until = Date.now() + total * 1000;
+  const paint = () => {
+    const left = Math.max(0, Math.ceil((until - Date.now()) / 1000));
     status.textContent =
       `GDELT is throttling — retry ${attempt + 1} of 10 for ${query} in ${left}s ` +
       `(its limit is per-IP and clears on its own)`;
-    await sleep(1000);
+  };
+  paint();
+  const ticker = setInterval(paint, 1000);
+  try {
+    await sleep(total * 1000);
+  } finally {
+    clearInterval(ticker);
   }
 }
 
